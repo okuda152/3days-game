@@ -1,11 +1,10 @@
-# Unity generated folders
-[Ll]ibrary/
-[Tt]emp/
-[Oo]bj/
-[Bb]uild/
-[Bb]uilds/
-[Ll]ogs/
-[Uu]ser[Ss]ettings/
+# Godot generated files
+.godot/
+
+# Mono / .NET build artifacts (only needed if C# is used later)
+.mono/
+data_*/
+mono_crash.*.json
 
 # Local editor and IDE settings
 .vs/
@@ -13,9 +12,3 @@
 *.csproj
 *.sln
 *.user
-*.pidb
-*.booproj
-*.unityproj
-
-# Unity-generated files
-unity-*.log
