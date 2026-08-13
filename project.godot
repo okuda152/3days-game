@@ -1,9 +1,10 @@
 ; Engine configuration file.
-; Edit this file through the Godot editor when possible.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
 ;
 ; Format:
-;   [section]
-;   param=value
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
 
 config_version=5
 
@@ -15,13 +16,11 @@ config/features=PackedStringArray("4.7")
 
 [display]
 
-[display/window]
-
-size/viewport_width=1280
-size/viewport_height=720
-size/window_width_override=1280
-size/window_height_override=720
-stretch/mode="canvas_items"
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/size/window_width_override=1280
+window/size/window_height_override=720
+window/stretch/mode="canvas_items"
 
 [rendering]
 
