@@ -2,9 +2,9 @@ extends Control
 
 signal cell_pressed(x: int, y: int)
 
-const GRID_SIZE := 6
-const TILE_W := 128.0
-const TILE_H := 64.0
+const GRID_SIZE := 4
+const TILE_W := 200.0
+const TILE_H := 100.0
 
 var show_grid := false:
 	set(value):
@@ -25,7 +25,7 @@ func _ready() -> void:
 	call_deferred("refresh_items")
 
 func tile_center(x: int, y: int) -> Vector2:
-	return Vector2(size.x * 0.5 + (x - y) * TILE_W * 0.5, size.y * 0.47 + (x + y) * TILE_H * 0.5)
+	return Vector2(size.x * 0.5 + (x - y) * TILE_W * 0.5, size.y * 0.41 + (x + y) * TILE_H * 0.5)
 
 func refresh_items() -> void:
 	# Render from this Control itself. Sprite2D children can be obscured by the

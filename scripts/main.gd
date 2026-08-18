@@ -2,7 +2,11 @@ extends Control
 
 const IsoBoard = preload("res://scripts/iso_board.gd")
 
-const GRID_SIZE := 6
+const GRID_SIZE := 4
+const TILE_W := 200.0
+const TILE_H := 100.0
+const GRID_Y_RATIO := 0.41
+const PLACED_ITEM_SIZE := 190.0
 const INITIAL_MATERIALS := {"枝": 4, "葉": 5, "草": 6, "わら": 4, "木": 3}
 const RECIPES := {
 	"ベッド": {"cost": {"草": 2, "わら": 2}, "symbol": "ベッド", "color": "b77b5d", "path": "res://assets/bed.png"},
@@ -16,6 +20,18 @@ const ITEM_TEXTURES := {
 	"ベッド": "res://assets/bed.png", "餌おき": "res://assets/feeder.png", "水飲み場": "res://assets/water.png",
 	"テーブル": "res://assets/table.png", "見晴らし台": "res://assets/tower.png", "花かざり": "res://assets/flower.png",
 }
+const ANIMAL_TEXTURES := {
+	"スズメ": "res://assets/animals/sparrow.png",
+	"ハリネズミ": "res://assets/animals/hedgehog.png",
+	"カエル": "res://assets/animals/frog.png",
+	"モンシロチョウ": "res://assets/animals/butterfly.png",
+	"リス": "res://assets/animals/squirrel.png",
+	"ビーバー": "res://assets/animals/beaver.png",
+	"ティラノサウルス": "res://assets/animals/tyrannosaurus.png",
+	"ワイバーン": "res://assets/animals/wyvern.png",
+	"スライム": "res://assets/animals/slime.png",
+	"マグロ": "res://assets/animals/tuna.png",
+}
 const ITEM_DESCRIPTIONS := {
 	"ベッド": "ふかふかの寝床。丸まって休みたい生きもの向け。",
 	"餌おき": "木の実を置く小さな食卓。小鳥が寄りやすい。",
@@ -24,12 +40,31 @@ const ITEM_DESCRIPTIONS := {
 	"見晴らし台": "外を見渡せる高台。景色が好きな生きもの向け。",
 	"花かざり": "巣を華やかにする飾り。水辺の近くとも相性がいい。",
 }
+const VISITOR_COLORS := {
+	"スズメ": "a77b42", "ハリネズミ": "9f7057", "カエル": "4d8c78", "モンシロチョウ": "b38a94",
+	"リス": "a66e43", "ビーバー": "78624e", "ティラノサウルス": "8f5b50", "ワイバーン": "765e9c",
+	"スライム": "4d9b80", "マグロ": "4d79a5",
+}
+const BESTIARY := [
+	{"name":"スズメ", "hidden_hint":"木の実をついばめる場所を探しているみたい。", "hint":"餌おきを置くと来やすい。"},
+	{"name":"ハリネズミ", "hidden_hint":"丸まって眠れる、ふかふかの場所が好きみたい。", "hint":"ベッドを置くと来やすい。"},
+	{"name":"カエル", "hidden_hint":"しっとりした水辺を探しているみたい。", "hint":"水飲み場を置くと来やすい。"},
+	{"name":"モンシロチョウ", "hidden_hint":"水のそばで、きれいなものを探しているみたい。", "hint":"水飲み場の隣に花かざりを置くと来やすい。"},
+	{"name":"リス", "hidden_hint":"森を見渡せる、高い場所が好きみたい。", "hint":"見晴らし台を巣の端に置くと来やすい。"},
+	{"name":"ビーバー", "hidden_hint":"仲間と使える、にぎやかな場所を探しているみたい。", "hint":"テーブルと、3種類以上の内装を置くと来やすい。"},
+	{"name":"ティラノサウルス", "hidden_hint":"とても大きな来客。広く整った巣を探しているらしい。", "hint":"5種類以上の内装と、隣に2つ以上の内装があるテーブルが必要。"},
+	{"name":"ワイバーン", "hidden_hint":"翼を休められる、十分に高い場所を探しているらしい。", "hint":"見晴らし台を2つ、隣同士に置くと来やすい。"},
+	{"name":"スライム", "hidden_hint":"湿った場所と、やわらかい場所がどちらも好きみたい。", "hint":"水飲み場とベッドを隣同士に置くと来やすい。"},
+	{"name":"マグロ", "hidden_hint":"なぜか、たっぷりの水を探しているみたい。", "hint":"水飲み場を3つ置くと来やすい。"},
+]
 
 var materials: Dictionary
 var inventory: Dictionary = {}
 var grid: Array = []
 var selected_item := ""
 var discovered: Dictionary = {}
+var last_observed_visitors: Array[Dictionary] = []
+var encyclopedia_from_title := false
 var root_box: VBoxContainer
 var title_label: Label
 var is_building := false
@@ -111,6 +146,17 @@ func make_craft_card(item: String) -> Button:
 	cost_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	text_box.add_child(cost_label)
 	return card
+
+func add_animal_preview(row: HBoxContainer, animal_name: String, preview_size: Vector2 = Vector2(76, 76)) -> void:
+	if not ANIMAL_TEXTURES.has(animal_name):
+		return
+	var preview := TextureRect.new()
+	preview.texture = load(ANIMAL_TEXTURES[animal_name])
+	preview.custom_minimum_size = preview_size
+	preview.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	preview.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	preview.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(preview)
 
 func make_inventory_card(item: String) -> Button:
 	var card := make_button("", select_item.bind(item))
@@ -224,10 +270,18 @@ func show_title_screen() -> void:
 	var start_row := HBoxContainer.new()
 	start_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	start_margin.add_child(start_row)
-	var start := make_button("巣づくりをはじめる", show_build_screen)
-	start.custom_minimum_size = Vector2(280, 62)
+	var start_column := VBoxContainer.new()
+	start_column.alignment = BoxContainer.ALIGNMENT_CENTER
+	start_column.add_theme_constant_override("separation", 14)
+	start_row.add_child(start_column)
+	var start := make_button("巣づくりをはじめる", reset_and_show)
+	start.custom_minimum_size = Vector2(300, 62)
 	start.add_theme_font_size_override("font_size", 22)
-	start_row.add_child(start)
+	start_column.add_child(start)
+	var title_bestiary := make_button("いきもの図鑑", open_title_encyclopedia)
+	title_bestiary.custom_minimum_size = Vector2(300, 62)
+	title_bestiary.add_theme_font_size_override("font_size", 22)
+	start_column.add_child(title_bestiary)
 
 func show_build_screen() -> void:
 	is_building = true
@@ -254,6 +308,10 @@ func show_build_screen() -> void:
 	reset_button.custom_minimum_size = Vector2(132, 52)
 	reset_button.add_theme_font_size_override("font_size", 20)
 	header.add_child(reset_button)
+	var encyclopedia_button := make_button("図鑑", open_build_encyclopedia)
+	encyclopedia_button.custom_minimum_size = Vector2(96, 52)
+	encyclopedia_button.add_theme_font_size_override("font_size", 20)
+	header.add_child(encyclopedia_button)
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(spacer)
@@ -370,23 +428,23 @@ func add_placed_item_visuals() -> void:
 				icon.material = bed_background_key_material()
 			add_child(icon)
 			var screen_size := get_viewport_rect().size
-			var item_offset := Vector2(-70.0, -84.0)
+			var item_offset := Vector2(-PLACED_ITEM_SIZE * 0.5, -PLACED_ITEM_SIZE * 0.60)
 			# 見晴らし台は背が高いので、足元がマスの中心に見えるよう少し上へ寄せる。
 			if item == "見晴らし台":
 				item_offset.y -= 20.0
-			icon.position = Vector2(screen_size.x * 0.5 + (x - y) * 64.0, screen_size.y * 0.36 + (x + y) * 32.0) + item_offset
-			icon.size = Vector2(140, 140)
+			icon.position = Vector2(screen_size.x * 0.5 + (x - y) * TILE_W * 0.5, screen_size.y * GRID_Y_RATIO + (x + y) * TILE_H * 0.5) + item_offset
+			icon.size = Vector2(PLACED_ITEM_SIZE, PLACED_ITEM_SIZE)
 
 func add_placement_grid() -> void:
 	# Draw above the background rather than inside it, so the placement guide is
 	# visible only while an interior item is held.
 	var screen_size := get_viewport_rect().size
-	var base := Vector2(screen_size.x * 0.5, screen_size.y * 0.36)
+	var base := Vector2(screen_size.x * 0.5, screen_size.y * GRID_Y_RATIO)
 	for y in GRID_SIZE:
 		for x in GRID_SIZE:
-			var p := base + Vector2((x - y) * 64.0, (x + y) * 32.0)
+			var p := base + Vector2((x - y) * TILE_W * 0.5, (x + y) * TILE_H * 0.5)
 			var line := Line2D.new()
-			line.points = PackedVector2Array([p + Vector2(0, -32), p + Vector2(64, 0), p + Vector2(0, 32), p + Vector2(-64, 0), p + Vector2(0, -32)])
+			line.points = PackedVector2Array([p + Vector2(0, -TILE_H * 0.5), p + Vector2(TILE_W * 0.5, 0), p + Vector2(0, TILE_H * 0.5), p + Vector2(-TILE_W * 0.5, 0), p + Vector2(0, -TILE_H * 0.5)])
 			line.width = 2.0
 			line.default_color = Color(1.0, 0.90, 0.60, 0.82)
 			line.z_index = 8
@@ -466,28 +524,195 @@ func evaluate_visitors() -> Array[Dictionary]:
 	if lookout_on_edge(): visitors.append({"name":"リス", "count":1, "comment":"高いところから森がよく見える！"})
 	if has_item("テーブル") and distinct_placed_count() >= 3: visitors.append({"name":"ビーバー", "count":1, "comment":"このテーブル、作りがしっかりしているな。"})
 	if distinct_placed_count() >= 5 and table_has_two_neighbors(): visitors.append({"name":"ティラノサウルス", "count":1, "comment":"広くて使いやすいと好評です。"})
+	if has_adjacent("見晴らし台", "見晴らし台"): visitors.append({"name":"ワイバーン", "count":1, "comment":"この高さなら翼を休められる。なかなか悪くない巣だ！"})
+	if has_adjacent("水飲み場", "ベッド"): visitors.append({"name":"スライム", "count":3, "comment":"ぷるぷる……しっとり、ふかふか。ここ、好き。"})
+	if placed_count("水飲み場") >= 3: visitors.append({"name":"マグロ", "count":1, "comment":"この水量！ 海じゃないけど、気に入ったぜ！"})
 	return visitors
+
+func make_observation_card(visitor: Dictionary, is_new: bool) -> PanelContainer:
+	var card := PanelContainer.new()
+	card.custom_minimum_size = Vector2(548, 106)
+	var accent := Color(VISITOR_COLORS.get(visitor.name, "765b45"))
+	card.add_theme_stylebox_override("panel", make_style(accent.darkened(0.48), 12, accent.lightened(0.15)))
+	var margin := MarginContainer.new()
+	for side in ["left", "right", "top", "bottom"]:
+		margin.add_theme_constant_override("margin_" + side, 12)
+	card.add_child(margin)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 14)
+	margin.add_child(row)
+	add_animal_preview(row, visitor.name)
+	var visitor_name := make_label("%s\n%d匹" % [visitor.name, visitor.count], 22)
+	visitor_name.custom_minimum_size = Vector2(120, 0)
+	visitor_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	visitor_name.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	visitor_name.add_theme_color_override("font_color", Color("fff0c8"))
+	row.add_child(visitor_name)
+	var detail_box := VBoxContainer.new()
+	detail_box.alignment = BoxContainer.ALIGNMENT_CENTER
+	detail_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(detail_box)
+	if is_new:
+		var new_label := make_label("NEW DISCOVERY", 14)
+		new_label.add_theme_color_override("font_color", Color("ffe08a"))
+		detail_box.add_child(new_label)
+	var comment := make_label(visitor.comment, 17)
+	comment.add_theme_color_override("font_color", Color("fff3d6"))
+	detail_box.add_child(comment)
+	return card
+
+func make_bestiary_card(entry: Dictionary) -> PanelContainer:
+	var found := discovered.has(entry.name)
+	var card := PanelContainer.new()
+	card.custom_minimum_size = Vector2(548, 104)
+	var accent := Color(VISITOR_COLORS.get(entry.name, "765b45")) if found else Color("51493d")
+	card.add_theme_stylebox_override("panel", make_style(accent.darkened(0.48), 12, accent.lightened(0.10)))
+	var margin := MarginContainer.new()
+	for side in ["left", "right", "top", "bottom"]:
+		margin.add_theme_constant_override("margin_" + side, 12)
+	card.add_child(margin)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 14)
+	margin.add_child(row)
+	if found:
+		add_animal_preview(row, entry.name, Vector2(70, 70))
+	var name_label := make_label(entry.name if found else "？？？", 23)
+	name_label.custom_minimum_size = Vector2(150 if not found else 110, 0)
+	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	name_label.add_theme_color_override("font_color", Color("fff0c8") if found else Color("b8ae9d"))
+	row.add_child(name_label)
+	var detail_box := VBoxContainer.new()
+	detail_box.alignment = BoxContainer.ALIGNMENT_CENTER
+	detail_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(detail_box)
+	var state_label := make_label("発見済み" if found else "まだ出会っていない", 14)
+	state_label.add_theme_color_override("font_color", Color("ffe08a") if found else Color("a79b88"))
+	detail_box.add_child(state_label)
+	var hint_label := make_label(entry.hint if found else entry.hidden_hint, 16)
+	hint_label.add_theme_color_override("font_color", Color("fff3d6") if found else Color("cdc3b2"))
+	detail_box.add_child(hint_label)
+	return card
+
+func show_encyclopedia(page: int = 0) -> void:
+	is_building = false
+	clear_screen()
+	title_label.text = "いきもの図鑑"
+	root_box.add_child(make_label("発見した生きもの　%d / %d" % [discovered.size(), BESTIARY.size()], 19))
+	var entries_per_page := 5
+	var total_pages := ceili(float(BESTIARY.size()) / float(entries_per_page))
+	var safe_page := clampi(page, 0, total_pages - 1)
+	var page_label := make_label("%d / %d ページ" % [safe_page + 1, total_pages], 16)
+	page_label.add_theme_color_override("font_color", Color("f3dfb5"))
+	root_box.add_child(page_label)
+	var entry_grid := GridContainer.new()
+	entry_grid.columns = 2
+	entry_grid.add_theme_constant_override("h_separation", 16)
+	entry_grid.add_theme_constant_override("v_separation", 10)
+	root_box.add_child(entry_grid)
+	var start_index := safe_page * entries_per_page
+	var end_index := mini(start_index + entries_per_page, BESTIARY.size())
+	for index in range(start_index, end_index):
+		entry_grid.add_child(make_bestiary_card(BESTIARY[index]))
+	var footer := HBoxContainer.new()
+	footer.add_theme_constant_override("separation", 12)
+	root_box.add_child(footer)
+	if safe_page > 0:
+		footer.add_child(make_button("← 前のページ", show_encyclopedia.bind(safe_page - 1)))
+	if safe_page < total_pages - 1:
+		footer.add_child(make_button("次のページ →", show_encyclopedia.bind(safe_page + 1)))
+	footer.add_child(make_button("タイトルへ戻る" if encyclopedia_from_title else "巣づくりへ戻る", show_title_screen if encyclopedia_from_title else show_build_screen))
+
+func open_title_encyclopedia() -> void:
+	encyclopedia_from_title = true
+	show_encyclopedia()
+
+func open_build_encyclopedia() -> void:
+	encyclopedia_from_title = false
+	show_encyclopedia()
 
 func show_observation() -> void:
 	is_building = false
 	var visitors := evaluate_visitors()
-	for visitor in visitors: discovered[visitor.name] = true
+	last_observed_visitors = visitors.duplicate(true)
+	var new_visitors: Dictionary = {}
+	for visitor in visitors:
+		if not discovered.has(visitor.name):
+			new_visitors[visitor.name] = true
+		discovered[visitor.name] = true
 	clear_screen()
 	title_label.text = "いきもの観察ログ"
-	root_box.add_child(make_label("巣箱を観察した結果です。\n発見した生き物　%d / 7" % discovered.size(), 18))
+	var summary_text := "今日の巣箱には、%d種類の生きものが訪れました。　発見 %d / %d" % [visitors.size(), discovered.size(), BESTIARY.size()]
+	root_box.add_child(make_label(summary_text, 19))
 	if visitors.is_empty():
-		root_box.add_child(make_label("今日は、誰も来ていないみたい。\n内装を置いて、もう一度観察してみよう。", 20))
+		var empty_card := PanelContainer.new()
+		empty_card.custom_minimum_size = Vector2(0, 150)
+		empty_card.add_theme_stylebox_override("panel", make_style(Color("332a20"), 12, Color("8f704c")))
+		empty_card.add_child(make_label("今日は、まだ誰も来ていないみたい。\n内装を置いたり、置く場所を変えたりして、もう一度観察してみよう。", 21))
+		root_box.add_child(empty_card)
 	else:
+		var log_grid := GridContainer.new()
+		log_grid.columns = 2
+		log_grid.add_theme_constant_override("h_separation", 16)
+		log_grid.add_theme_constant_override("v_separation", 12)
+		root_box.add_child(log_grid)
 		for visitor in visitors:
-			var card := PanelContainer.new()
-			card.add_child(make_label("%s　%d匹\n%s" % [visitor.name, visitor.count, visitor.comment], 20))
-			root_box.add_child(card)
+			log_grid.add_child(make_observation_card(visitor, new_visitors.has(visitor.name)))
 	var footer := HBoxContainer.new()
-	footer.add_theme_constant_override("separation", 12)
+	footer.alignment = BoxContainer.ALIGNMENT_CENTER
 	root_box.add_child(footer)
-	footer.add_child(make_button("配置を変える", show_build_screen))
-	footer.add_child(make_button("もう一度つくる", reset_and_show))
-	footer.add_child(make_button("終了する", show_end_screen))
+	var view_button := make_button("作った巣を見る", show_nest_view)
+	view_button.custom_minimum_size = Vector2(260, 56)
+	view_button.add_theme_font_size_override("font_size", 22)
+	footer.add_child(view_button)
+
+func show_nest_view() -> void:
+	is_building = false
+	clear_screen()
+	title_label.text = "巣のようす"
+	root_box.add_child(make_label("今日、ここを訪れた生きものたち", 18))
+	var title_button := make_button("タイトルへ戻る", show_title_screen)
+	title_button.custom_minimum_size = Vector2(220, 52)
+	title_button.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	title_button.offset_left = -110
+	title_button.offset_right = 110
+	title_button.offset_top = -88
+	title_button.offset_bottom = -36
+	title_button.z_index = 20
+	add_child(title_button)
+	call_deferred("add_placed_item_visuals")
+	call_deferred("add_visiting_animal_visuals")
+
+func add_visiting_animal_visuals() -> void:
+	var anchors := [
+		Vector2(0.34, 0.58), Vector2(0.54, 0.52), Vector2(0.70, 0.60),
+		Vector2(0.44, 0.72), Vector2(0.63, 0.72), Vector2(0.78, 0.50),
+	]
+	var count := mini(last_observed_visitors.size(), anchors.size())
+	for index in range(count):
+		var visitor: Dictionary = last_observed_visitors[index]
+		var animal_name: String = visitor.name
+		if not ANIMAL_TEXTURES.has(animal_name):
+			continue
+		var animal := TextureRect.new()
+		animal.texture = load(ANIMAL_TEXTURES[animal_name])
+		animal.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		animal.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		animal.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		animal.z_index = 12
+		var visual_size := Vector2(116, 116)
+		if animal_name == "ティラノサウルス" or animal_name == "ワイバーン":
+			visual_size = Vector2(142, 142)
+		animal.size = visual_size
+		var start: Vector2 = get_viewport_rect().size * anchors[index] - visual_size * 0.5
+		animal.position = start
+		add_child(animal)
+		var distance := 24.0 + float(index % 3) * 8.0
+		var duration := 1.4 + float(index) * 0.12
+		var movement := create_tween().set_loops()
+		movement.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		movement.tween_property(animal, "position", start + Vector2(distance, 0), duration)
+		movement.tween_property(animal, "position", start - Vector2(distance, 0), duration)
 
 func reset_and_show() -> void:
 	reset_build(true)
@@ -504,15 +729,15 @@ func _input(event: InputEvent) -> void:
 		return
 	var closest := Vector2i(-1, -1)
 	var closest_distance := INF
-	var base := Vector2(size.x * 0.5, size.y * 0.36)
+	var base := Vector2(size.x * 0.5, size.y * GRID_Y_RATIO)
 	for y in GRID_SIZE:
 		for x in GRID_SIZE:
-			var center := base + Vector2((x - y) * 64.0, (x + y) * 32.0)
+			var center := base + Vector2((x - y) * TILE_W * 0.5, (x + y) * TILE_H * 0.5)
 			var distance: float = event.position.distance_squared_to(center)
 			if distance < closest_distance:
 				closest_distance = distance
 				closest = Vector2i(x, y)
-	if closest_distance <= 64.0 * 64.0:
+	if closest_distance <= TILE_W * TILE_W * 0.25:
 		click_cell(closest.x, closest.y)
 		get_viewport().set_input_as_handled()
 
