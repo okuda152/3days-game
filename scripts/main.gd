@@ -7,6 +7,11 @@ const TILE_W := 200.0
 const TILE_H := 100.0
 const GRID_Y_RATIO := 0.41
 const PLACED_ITEM_SIZE := 190.0
+const BGM_STREAM_PATH := "res://assets/audio/BGM.mp3"
+const START_SFX_STREAM_PATH := "res://assets/audio/ゲーム開始.mp3"
+const CRAFT_SFX_STREAM_PATH := "res://assets/audio/クラフト.mp3"
+const PLACE_SFX_STREAM_PATH := "res://assets/audio/配置.mp3"
+const CRAFT_SFX_DURATION := 0.7
 const INITIAL_MATERIALS := {"枝": 4, "葉": 5, "草": 6, "わら": 4, "木": 3}
 const RECIPES := {
 	"ベッド": {"cost": {"草": 2, "わら": 2}, "symbol": "ベッド", "color": "b77b5d", "path": "res://assets/bed.png"},
@@ -68,10 +73,41 @@ var encyclopedia_from_title := false
 var root_box: VBoxContainer
 var title_label: Label
 var is_building := false
+var bgm_player: AudioStreamPlayer
+var sfx_player: AudioStreamPlayer
+var sfx_serial := 0
 
 func _ready() -> void:
+	setup_audio()
 	reset_build(false)
 	show_title_screen()
+
+func setup_audio() -> void:
+	bgm_player = AudioStreamPlayer.new()
+	bgm_player.stream = load(BGM_STREAM_PATH)
+	bgm_player.volume_db = -18.0
+	add_child(bgm_player)
+	if bgm_player.stream is AudioStreamMP3:
+		bgm_player.stream.loop = true
+	bgm_player.play()
+
+	sfx_player = AudioStreamPlayer.new()
+	sfx_player.volume_db = -7.0
+	add_child(sfx_player)
+
+func play_sfx(stream_path: String, max_duration: float = -1.0) -> void:
+	if sfx_player == null:
+		return
+	sfx_serial += 1
+	var play_id := sfx_serial
+	sfx_player.stop()
+	sfx_player.stream = load(stream_path)
+	sfx_player.play()
+	if max_duration > 0.0:
+		get_tree().create_timer(max_duration).timeout.connect(func() -> void:
+			if sfx_serial == play_id:
+				sfx_player.stop()
+		)
 
 func reset_build(keep_discoveries: bool = true) -> void:
 	materials = INITIAL_MATERIALS.duplicate()
@@ -220,7 +256,10 @@ func skin_button(button: Button, normal: Color, hover: Color) -> void:
 	button.add_theme_color_override("font_disabled_color", Color("938b7e"))
 
 func clear_screen() -> void:
-	for child in get_children(): child.queue_free()
+	for child in get_children():
+		if child == bgm_player or child == sfx_player:
+			continue
+		child.queue_free()
 	var background := TextureRect.new()
 	background.texture = load("res://assets/nest_iso_clean.png")
 	background.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -274,7 +313,7 @@ func show_title_screen() -> void:
 	start_column.alignment = BoxContainer.ALIGNMENT_CENTER
 	start_column.add_theme_constant_override("separation", 14)
 	start_row.add_child(start_column)
-	var start := make_button("巣づくりをはじめる", reset_and_show)
+	var start := make_button("巣づくりをはじめる", start_game)
 	start.custom_minimum_size = Vector2(300, 62)
 	start.add_theme_font_size_override("font_size", 22)
 	start_column.add_child(start)
@@ -380,11 +419,16 @@ func can_craft(item: String) -> bool:
 		if materials[material] < RECIPES[item].cost[material]: return false
 	return true
 
+func start_game() -> void:
+	play_sfx(START_SFX_STREAM_PATH)
+	reset_and_show()
+
 func craft(item: String) -> void:
 	if not can_craft(item): return
 	for material in RECIPES[item].cost: materials[material] -= RECIPES[item].cost[material]
 	inventory[item] += 1
 	selected_item = item
+	play_sfx(CRAFT_SFX_STREAM_PATH, CRAFT_SFX_DURATION)
 	show_build_screen()
 
 func craft_from_menu(item: String) -> void:
@@ -392,6 +436,7 @@ func craft_from_menu(item: String) -> void:
 	for material in RECIPES[item].cost: materials[material] -= RECIPES[item].cost[material]
 	inventory[item] += 1
 	selected_item = item
+	play_sfx(CRAFT_SFX_STREAM_PATH, CRAFT_SFX_DURATION)
 	show_craft_screen()
 
 func select_item(item: String) -> void:
@@ -406,6 +451,7 @@ func click_cell(x: int, y: int) -> void:
 	elif not selected_item.is_empty() and inventory[selected_item] > 0:
 		grid[y][x] = selected_item
 		inventory[selected_item] -= 1
+		play_sfx(PLACE_SFX_STREAM_PATH)
 		if inventory[selected_item] == 0: selected_item = ""
 	show_build_screen()
 
