@@ -52,7 +52,7 @@ const BESTIARY := [
 	{"name":"モンシロチョウ", "hidden_hint":"水のそばで、きれいなものを探しているみたい。", "hint":"水飲み場の隣に花かざりを置くと来やすい。"},
 	{"name":"リス", "hidden_hint":"森を見渡せる、高い場所が好きみたい。", "hint":"見晴らし台を巣の端に置くと来やすい。"},
 	{"name":"ビーバー", "hidden_hint":"仲間と使える、にぎやかな場所を探しているみたい。", "hint":"テーブルと、3種類以上の内装を置くと来やすい。"},
-	{"name":"ティラノサウルス", "hidden_hint":"とても大きな来客。広く整った巣を探しているらしい。", "hint":"5種類以上の内装と、隣に2つ以上の内装があるテーブルが必要。"},
+	{"name":"ティラノサウルス", "hidden_hint":"とても大きな来客。食卓のまわりがにぎやかな巣を探しているらしい。", "hint":"5種類以上の内装と、隣に2つ以上の内装があるテーブルが必要。"},
 	{"name":"ワイバーン", "hidden_hint":"翼を休められる、十分に高い場所を探しているらしい。", "hint":"見晴らし台を2つ、隣同士に置くと来やすい。"},
 	{"name":"スライム", "hidden_hint":"湿った場所と、やわらかい場所がどちらも好きみたい。", "hint":"水飲み場とベッドを隣同士に置くと来やすい。"},
 	{"name":"マグロ", "hidden_hint":"なぜか、たっぷりの水を探しているみたい。", "hint":"水飲み場を3つ置くと来やすい。"},
@@ -517,16 +517,16 @@ func table_has_two_neighbors() -> bool:
 
 func evaluate_visitors() -> Array[Dictionary]:
 	var visitors: Array[Dictionary] = []
-	if has_item("餌おき"): visitors.append({"name":"スズメ", "count":clampi(placed_count("餌おき") + 1, 1, 5), "comment":"葉っぱの餌おきが落ち着くね！ 高い場所もあったら、もっと仲間を呼べそう！"})
-	if has_item("ベッド"): visitors.append({"name":"ハリネズミ", "count":1, "comment":"ふかふかで昼寝にぴったり。"})
-	if has_item("水飲み場"): visitors.append({"name":"カエル", "count":clampi(placed_count("水飲み場"), 1, 5), "comment":"水飲み場を発見。近くにきれいなものがあったら、もっとにぎやかかも。"})
-	if has_adjacent("花かざり", "水飲み場"): visitors.append({"name":"モンシロチョウ", "count":2, "comment":"花かざりの周りを飛んでいます。"})
-	if lookout_on_edge(): visitors.append({"name":"リス", "count":1, "comment":"高いところから森がよく見える！"})
-	if has_item("テーブル") and distinct_placed_count() >= 3: visitors.append({"name":"ビーバー", "count":1, "comment":"このテーブル、作りがしっかりしているな。"})
-	if distinct_placed_count() >= 5 and table_has_two_neighbors(): visitors.append({"name":"ティラノサウルス", "count":1, "comment":"広くて使いやすいと好評です。"})
-	if has_adjacent("見晴らし台", "見晴らし台"): visitors.append({"name":"ワイバーン", "count":1, "comment":"この高さなら翼を休められる。なかなか悪くない巣だ！"})
-	if has_adjacent("水飲み場", "ベッド"): visitors.append({"name":"スライム", "count":3, "comment":"ぷるぷる……しっとり、ふかふか。ここ、好き。"})
-	if placed_count("水飲み場") >= 3: visitors.append({"name":"マグロ", "count":1, "comment":"この水量！ 海じゃないけど、気に入ったぜ！"})
+	if has_item("餌おき"): visitors.append({"name":"スズメ", "count":clampi(placed_count("餌おき") + 1, 1, 5), "comment":"ごはんがある！ 仲間にも教えなきゃ！"})
+	if has_item("ベッド"): visitors.append({"name":"ハリネズミ", "count":1, "comment":"これは……寝心地よすぎる……"})
+	if has_item("水飲み場"): visitors.append({"name":"カエル", "count":clampi(placed_count("水飲み場"), 1, 5), "comment":"ひんやりして、いいところケロ。"})
+	if has_adjacent("花かざり", "水飲み場"): visitors.append({"name":"モンシロチョウ", "count":2, "comment":"お花のまわりで、少し休ませてもらいます。"})
+	if lookout_on_edge(): visitors.append({"name":"リス", "count":1, "comment":"わあ、森がずーっと見える！"})
+	if has_item("テーブル") and distinct_placed_count() >= 3: visitors.append({"name":"ビーバー", "count":1, "comment":"みんなで囲める場所があるのは、いいな。"})
+	if distinct_placed_count() >= 5 and table_has_two_neighbors(): visitors.append({"name":"ティラノサウルス", "count":1, "comment":"うむ。なかなか立派なすみかだ。"})
+	if has_adjacent("見晴らし台", "見晴らし台"): visitors.append({"name":"ワイバーン", "count":1, "comment":"翼を休めるには、ちょうどいい。"})
+	if has_adjacent("水飲み場", "ベッド"): visitors.append({"name":"スライム", "count":3, "comment":"ぷるぷる……ここ、すき。"})
+	if placed_count("水飲み場") >= 3: visitors.append({"name":"マグロ", "count":1, "comment":"海じゃないけど……悪くないぜ！"})
 	return visitors
 
 func make_observation_card(visitor: Dictionary, is_new: bool) -> PanelContainer:
